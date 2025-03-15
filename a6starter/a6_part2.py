@@ -1,4 +1,12 @@
 import os
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+import matplotlib.pyplot as plt
 from FileUtils import readIntoList
 
 def read_images_and_targets_from_text_files(source_folder):
@@ -134,7 +142,99 @@ def train_predict_report(images, targets, test_percentage, reports_folder):
         test_percentage (float): what percentage of the data set to use as testing data
         reports_folder (string): where to put the PNG files containing the reports
     """
-    pass
+    # Make sure reports folder exists
+    if not os.path.exists(reports_folder):
+        os.makedirs(reports_folder)
+    
+    # Convert to numpy arrays for sklearn
+    X = np.array(images)
+    y = np.array(targets)
+    
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_percentage, random_state=42)
+    
+    # Calculate counts
+    total_samples = len(X)
+    training_samples = len(X_train)
+    testing_samples = len(X_test)
+    
+    # Print formatted dataset information
+    print("--------------------------")
+    print("Number of Samples")
+    print()
+    print(f"     Total      :  {total_samples:,}")
+    print(f"     Training   :  {training_samples:,} ({100-test_percentage*100:.0f}%)")
+    print(f"     Testing    :  {testing_samples:,} ({test_percentage*100:.0f}%)")
+    print()
+    
+    # Define classifiers
+    classifiers = {
+        "Decision Tree": DecisionTreeClassifier(random_state=42),
+        "Gaussian - Naive Bayes": GaussianNB(),
+        "K Nearest Neighbors": KNeighborsClassifier(n_neighbors=5),
+        "Support Vector Machine": SVC(kernel='linear', random_state=42)
+    }
+    
+    # Dictionary to store accuracy scores
+    accuracy_scores = {}
+    
+    # Print header for accuracy scores
+    print("Accuracy Scores")
+    print()
+    
+    # Train and evaluate each classifier
+    for name, classifier in classifiers.items():
+        # Train the classifier
+        classifier.fit(X_train, y_train)
+        
+        # Make predictions
+        y_pred = classifier.predict(X_test)
+        
+        # Calculate accuracy
+        accuracy = accuracy_score(y_test, y_pred)
+        accuracy_scores[name] = accuracy
+        
+        # Print formatted accuracy
+        formatted_name = f"{name}:".ljust(30)
+        print(f"     {formatted_name} {accuracy*100:.0f}%")
+        
+        # Create confusion matrix
+        cm = confusion_matrix(y_test, y_pred)
+        
+        # Create a figure showing accuracy and confusion matrix
+        plt.figure(figsize=(8, 6))
+        plt.suptitle(f"{name}", fontsize=14)
+        
+        # Add accuracy text at the top
+        plt.figtext(0.5, 0.9, f"Accuracy: {accuracy:.4f}", fontsize=12, ha='center')
+        
+        # Plot confusion matrix
+        plt.subplot(111)
+        plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+        plt.colorbar()
+        
+        # Add labels
+        tick_marks = np.arange(10)  # 10 digits (0-9)
+        plt.xticks(tick_marks, range(10))
+        plt.yticks(tick_marks, range(10))
+        plt.xlabel('Predicted')
+        plt.ylabel('Actual')
+        
+        # Add values to confusion matrix cells
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                plt.text(j, i, str(cm[i, j]), 
+                         ha="center", va="center", 
+                         color="white" if cm[i, j] > cm.max() / 2 else "black")
+        
+        # Save the figure
+        plt.tight_layout()
+        plt.savefig(os.path.join(reports_folder, f"{name.replace(' ', '_')}.png"))
+        plt.close()
+    
+    print()
+    print("--------------------------")
 
 
 if __name__ == "__main__":
@@ -146,23 +246,12 @@ if __name__ == "__main__":
     images, targets = read_images_and_targets_from_text_files(source_folder)
     
     # Reduce dimensions from 32x32 to 8x8
-    reduced_images = reduce_dimensions(images)
-    
-    # Check result of dimension reduction
-    if len(reduced_images) > 0:
-        print(f"Dimensions after reduction: {len(reduced_images[0])} x {len(reduced_images[0][0])}")
-        print("Sample of first reduced image (8x8):")
-        for row in reduced_images[247]:
-            print(' '.join(f"{val:2d}" for val in row))
+    images = reduce_dimensions(images)
     
     # Flatten images from 8x8 to 1x64
-    flattened_images = flatten_images(reduced_images)
+    images = flatten_images(images)
     
-    # Check result of flattening
-    if len(flattened_images) > 0:
-        print(f"Length of flattened image: {len(flattened_images[0])}")
-        print(f"First 10 values of flattened image: {flattened_images[0][:10]}")
+    # Train classifiers and generate reports
+    train_predict_report(images, targets, testing_percentage, reports_folder)
     
-    # The train_predict_report function will be implemented next
-    # train_predict_report(flattened_images, targets, testing_percentage, reports_folder)
-        
+    print("\nPart 2 completed successfully!")
